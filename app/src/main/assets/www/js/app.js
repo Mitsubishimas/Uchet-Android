@@ -16,7 +16,7 @@
 
   let state = {
     tab: "home",
-    view: "tab", // tab | detail | edit
+    view: "tab",
     orders: [],
     selectedId: null,
     filter: "",
@@ -87,7 +87,7 @@
       ["consumption", "Расход"], ["vmax", "Макс. скорость"],
     ]) {
       const parsed = D.parseNumberField(values[field]);
-      if (parsed === "invalid") { errors.push(`${label}: введите число.`); numbers[field] = null; }
+      if (parsed === "invalid") { errors.push(label + ": введите число."); numbers[field] = null; }
       else numbers[field] = parsed;
     }
     const item_firmware = values.item_firmware === "on" || values.item_firmware === true;
@@ -125,252 +125,137 @@
   }
 
   function orderCard(o) {
-    return `
-      <button type="button" class="order-card" data-open="${o.id}">
-        <span class="order-card__top">
-          <span class="order-card__name">${D.escapeHtml(o.customer_name)}</span>
-          ${badge(o.status)}
-        </span>
-        <span class="order-card__meta">${D.escapeHtml(o.car || "Авто не указан")}</span>
-        <span class="order-card__meta">
-          <span>${D.formatDate(o.created_at)}</span>
-          <span>${D.formatMoney(o.amount_cents)}</span>
-        </span>
-      </button>`;
+    return '<button type="button" class="order-card" data-open="' + o.id + '">' +
+      '<span class="order-card__top"><span class="order-card__name">' + D.escapeHtml(o.customer_name) + '</span>' + badge(o.status) + '</span>' +
+      '<span class="order-card__meta">' + D.escapeHtml(o.car || "Авто не указан") + '</span>' +
+      '<span class="order-card__meta"><span>' + D.formatDate(o.created_at) + '</span><span>' + D.formatMoney(o.amount_cents) + '</span></span></button>';
   }
-
-  // ── Home: desktop ────────────────────────────────────────────────────────
 
   function renderHome() {
     const today = D.todayISO();
     const month = D.monthPeriod(today);
     const monthOrders = state.orders.filter((o) => D.inPeriod(o, month));
     const monthSum = monthOrders.reduce((s, o) => s + o.amount_cents, 0);
-
-    // В работе = создан или оплачен (ещё не отгружен)
     const inWork = state.orders.filter((o) => o.status === "created" || o.status === "paid");
-    // Не оплачены
     const unpaid = state.orders.filter((o) => o.status === "created");
-
-    main.innerHTML = `
-      <div class="stack">
-        <div class="card">
-          <p class="section-title">С начала месяца</p>
-          <div class="kpi-row">
-            <div class="kpi">
-              <span class="kpi__label">Сумма заказов (${month.label})</span>
-              <span class="kpi__value">${D.formatMoney(monthSum)}</span>
-              <span class="kpi__meta">${monthOrders.length} заказ(ов) · ${D.formatDate(month.from)} — ${D.formatDate(month.to)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <p class="section-title">В работе · ${inWork.length}</p>
-          ${inWork.length ? inWork.slice(0, 15).map(orderCard).join("") : '<p class="empty">Нет заказов в работе</p>'}
-        </div>
-
-        <div class="card">
-          <p class="section-title">Не оплачены · ${unpaid.length}</p>
-          ${unpaid.length ? unpaid.slice(0, 15).map(orderCard).join("") : '<p class="empty">Все оплачены</p>'}
-        </div>
-      </div>`;
+    main.innerHTML =
+      '<div class="stack"><div class="card"><p class="section-title">С начала месяца</p><div class="kpi-row"><div class="kpi">' +
+      '<span class="kpi__label">Сумма заказов (' + D.escapeHtml(month.label) + ')</span>' +
+      '<span class="kpi__value">' + D.formatMoney(monthSum) + '</span>' +
+      '<span class="kpi__meta">' + monthOrders.length + ' заказ(ов)</span></div></div></div>' +
+      '<div class="card"><p class="section-title">В работе · ' + inWork.length + '</p>' +
+      (inWork.length ? inWork.slice(0, 15).map(orderCard).join("") : '<p class="empty">Нет заказов в работе</p>') + '</div>' +
+      '<div class="card"><p class="section-title">Не оплачены · ' + unpaid.length + '</p>' +
+      (unpaid.length ? unpaid.slice(0, 15).map(orderCard).join("") : '<p class="empty">Все оплачены</p>') + '</div></div>';
   }
 
-  // ── Form (new / edit) ────────────────────────────────────────────────────
-
-  function field(label, name, values, opts = {}) {
+  function field(label, name, values, opts) {
+    opts = opts || {};
     const v = values[name] ?? "";
-    return `<label class="field${opts.wide ? " field--wide" : ""}">
-      <span class="field__label">${label}</span>
-      <input name="${name}" type="${opts.type || "text"}" value="${D.escapeHtml(v)}"
-        ${opts.placeholder ? `placeholder="${opts.placeholder}"` : ""}
-        ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""} />
-    </label>`;
+    return '<label class="field' + (opts.wide ? " field--wide" : "") + '"><span class="field__label">' + label + '</span>' +
+      '<input name="' + name + '" type="' + (opts.type || "text") + '" value="' + D.escapeHtml(v) + '"' +
+      (opts.placeholder ? ' placeholder="' + opts.placeholder + '"' : "") +
+      (opts.inputmode ? ' inputmode="' + opts.inputmode + '"' : "") + " /></label>";
   }
 
   function renderForm(mode) {
     const v = state.formValues;
     const err = state.formErrors.length
-      ? `<div class="errors"><ul>${state.formErrors.map((e) => `<li>${D.escapeHtml(e)}</li>`).join("")}</ul></div>`
+      ? '<div class="errors"><ul>' + state.formErrors.map((e) => "<li>" + D.escapeHtml(e) + "</li>").join("") + "</ul></div>"
       : "";
-
-    main.innerHTML = `
-      <div class="card stack">
-        ${err}
-        <form id="order-form" class="stack" data-mode="${mode}">
-          <div class="form-grid">
-            ${field("Дата", "created_at", v, { type: "date" })}
-            ${field("Покупатель *", "customer_name", v)}
-            ${field("Телефон", "phone", v, { inputmode: "tel" })}
-            ${field("E-mail", "email", v, { type: "email" })}
-            ${field("Автомобиль", "car", v)}
-            ${field("VIN", "vin", v)}
-            ${field("Двигатель", "engine", v)}
-            ${field("КПП", "gearbox", v)}
-            ${field("Мощность, л.с.", "power_hp", v, { inputmode: "decimal" })}
-            ${field("Момент, Н·м", "torque_nm", v, { inputmode: "decimal" })}
-            ${field("Расход, л/100 км", "consumption", v, { inputmode: "decimal" })}
-            ${field("Макс. скорость", "vmax", v, { inputmode: "decimal" })}
-            ${field("Сумма, ₽ *", "amount", v, { inputmode: "decimal", placeholder: "45 000,00" })}
-            <label class="field">
-              <span class="field__label">Статус</span>
-              <select name="status">
-                ${D.STATUSES.map((s) => `<option value="${s}"${s === v.status ? " selected" : ""}>${D.STATUS_LABELS[s]}</option>`).join("")}
-              </select>
-            </label>
-            <label class="field">
-              <span class="field__label">Доставка</span>
-              <select name="delivery">
-                ${D.DELIVERIES.map((d) => `<option value="${d}"${d === v.delivery ? " selected" : ""}>${D.DELIVERY_LABELS[d]}</option>`).join("")}
-              </select>
-            </label>
-            <label class="field field--wide">
-              <span class="field__label">Комментарий</span>
-              <textarea name="spec_notes">${D.escapeHtml(v.spec_notes)}</textarea>
-            </label>
-            <div class="field field--wide">
-              <span class="field__label">Позиции *</span>
-              <div class="checks">
-                <label class="check"><input type="checkbox" name="item_firmware" ${v.item_firmware ? "checked" : ""} /> Прошивка</label>
-                <label class="check"><input type="checkbox" name="item_ecu" ${v.item_ecu ? "checked" : ""} /> Блок управления</label>
-              </div>
-            </div>
-          </div>
-          <div class="actions">
-            <button type="submit">Сохранить</button>
-            <button type="button" class="secondary" data-action="cancel-form">Отмена</button>
-          </div>
-        </form>
-      </div>`;
+    main.innerHTML =
+      '<div class="card stack">' + err +
+      '<form id="order-form" class="stack" data-mode="' + mode + '"><div class="form-grid">' +
+      field("Дата", "created_at", v, { type: "date" }) +
+      field("Покупатель *", "customer_name", v) +
+      field("Телефон", "phone", v, { inputmode: "tel" }) +
+      field("E-mail", "email", v, { type: "email" }) +
+      field("Автомобиль", "car", v) + field("VIN", "vin", v) +
+      field("Двигатель", "engine", v) + field("КПП", "gearbox", v) +
+      field("Мощность, л.с.", "power_hp", v, { inputmode: "decimal" }) +
+      field("Момент, Н·м", "torque_nm", v, { inputmode: "decimal" }) +
+      field("Расход, л/100 км", "consumption", v, { inputmode: "decimal" }) +
+      field("Макс. скорость", "vmax", v, { inputmode: "decimal" }) +
+      field("Сумма, ₽ *", "amount", v, { inputmode: "decimal", placeholder: "45 000,00" }) +
+      '<label class="field"><span class="field__label">Статус</span><select name="status">' +
+      D.STATUSES.map((s) => '<option value="' + s + '"' + (s === v.status ? " selected" : "") + ">" + D.STATUS_LABELS[s] + "</option>").join("") +
+      '</select></label><label class="field"><span class="field__label">Доставка</span><select name="delivery">' +
+      D.DELIVERIES.map((d) => '<option value="' + d + '"' + (d === v.delivery ? " selected" : "") + ">" + D.DELIVERY_LABELS[d] + "</option>").join("") +
+      '</select></label><label class="field field--wide"><span class="field__label">Комментарий</span><textarea name="spec_notes">' + D.escapeHtml(v.spec_notes) + '</textarea></label>' +
+      '<div class="field field--wide"><span class="field__label">Позиции *</span><div class="checks">' +
+      '<label class="check"><input type="checkbox" name="item_firmware"' + (v.item_firmware ? " checked" : "") + " /> Прошивка</label>" +
+      '<label class="check"><input type="checkbox" name="item_ecu"' + (v.item_ecu ? " checked" : "") + " /> Блок управления</label>" +
+      '</div></div></div><div class="actions"><button type="submit">Сохранить</button>' +
+      '<button type="button" class="secondary" data-action="cancel-form">Отмена</button></div></form></div>';
   }
-
-  // ── List ─────────────────────────────────────────────────────────────────
 
   function renderList() {
     const needle = state.filter.trim().toLowerCase();
     const rows = needle
-      ? state.orders.filter((o) =>
-          [o.customer_name, o.car, o.vin, o.phone, o.engine].join(" ").toLowerCase().includes(needle))
+      ? state.orders.filter((o) => [o.customer_name, o.car, o.vin, o.phone, o.engine].join(" ").toLowerCase().includes(needle))
       : state.orders;
     const total = rows.reduce((s, o) => s + o.amount_cents, 0);
-
-    main.innerHTML = `
-      <div class="stack">
-        <div class="card stack">
-          <label class="field">
-            <span class="field__label">Поиск</span>
-            <input type="search" id="filter-input" value="${D.escapeHtml(state.filter)}" placeholder="Имя, авто, VIN" />
-          </label>
-          <p class="hint">Найдено: <strong>${rows.length}</strong> · ${D.formatMoney(total)}</p>
-        </div>
-        <div class="card">
-          ${rows.length ? rows.map(orderCard).join("") : '<p class="empty">Заказов нет</p>'}
-        </div>
-      </div>`;
+    main.innerHTML =
+      '<div class="stack"><div class="card stack"><label class="field"><span class="field__label">Поиск</span>' +
+      '<input type="search" id="filter-input" value="' + D.escapeHtml(state.filter) + '" placeholder="Имя, авто, VIN" /></label>' +
+      '<p class="hint">Найдено: <strong>' + rows.length + "</strong> · " + D.formatMoney(total) + "</p></div><div class=\"card\">" +
+      (rows.length ? rows.map(orderCard).join("") : '<p class="empty">Заказов нет</p>') + "</div></div>";
   }
-
-  // ── Detail ───────────────────────────────────────────────────────────────
 
   function renderDetail(o) {
-    const consumption = o.consumption == null ? "—" : `${D.formatNumber(o.consumption)} л/100 км`;
-    main.innerHTML = `
-      <div class="card stack">
-        <div class="order-head">
-          <h2 class="order-head__title">Заказ №${o.id}</h2>
-          ${badge(o.status)}
-        </div>
-        <table class="detail-table">
-          <tr><th>Дата</th><td>${D.formatDate(o.created_at)}</td></tr>
-          <tr><th>Покупатель</th><td>${D.escapeHtml(o.customer_name)}</td></tr>
-          <tr><th>Телефон</th><td>${D.escapeHtml(o.phone) || "—"}</td></tr>
-          <tr><th>E-mail</th><td>${D.escapeHtml(o.email) || "—"}</td></tr>
-          <tr><th>Автомобиль</th><td>${D.escapeHtml(o.car) || "—"}</td></tr>
-          <tr><th>VIN</th><td>${D.escapeHtml(o.vin) || "—"}</td></tr>
-          <tr><th>Двигатель</th><td>${D.escapeHtml(o.engine) || "—"}</td></tr>
-          <tr><th>КПП</th><td>${D.escapeHtml(o.gearbox) || "—"}</td></tr>
-          <tr><th>Мощность</th><td>${D.formatNumber(o.power_hp, " л.с.")}</td></tr>
-          <tr><th>Момент</th><td>${D.formatNumber(o.torque_nm, " Н·м")}</td></tr>
-          <tr><th>Расход</th><td>${consumption}</td></tr>
-          <tr><th>Vmax</th><td>${D.formatNumber(o.vmax, " км/ч")}</td></tr>
-          <tr><th>Позиции</th><td>${D.escapeHtml(D.itemsLabel(o))}</td></tr>
-          <tr><th>Сумма</th><td><strong>${D.formatMoney(o.amount_cents)}</strong></td></tr>
-          <tr><th>Доставка</th><td>${D.DELIVERY_LABELS[o.delivery] || o.delivery}</td></tr>
-          <tr><th>Комментарий</th><td style="white-space:pre-wrap">${D.escapeHtml(o.spec_notes) || "—"}</td></tr>
-        </table>
-
-        <p class="section-title">Статус заказа</p>
-        <div class="status-row">
-          <label class="field">
-            <span class="field__label">Статус</span>
-            <select id="quick-status">
-              ${D.STATUSES.map((s) => `<option value="${s}"${s === o.status ? " selected" : ""}>${D.STATUS_LABELS[s]}</option>`).join("")}
-            </select>
-          </label>
-          <label class="field">
-            <span class="field__label">Доставка</span>
-            <select id="quick-delivery">
-              ${D.DELIVERIES.map((d) => `<option value="${d}"${d === o.delivery ? " selected" : ""}>${D.DELIVERY_LABELS[d]}</option>`).join("")}
-            </select>
-          </label>
-          <button type="button" class="sm" data-action="quick-save" data-id="${o.id}">Сохранить статус</button>
-        </div>
-
-        <div class="actions">
-          <button type="button" data-action="edit" data-id="${o.id}">Редактировать</button>
-          <button type="button" class="danger" data-action="delete" data-id="${o.id}">Удалить</button>
-          <button type="button" class="secondary" data-action="back-list">К списку</button>
-        </div>
-      </div>`;
+    const consumption = o.consumption == null ? "—" : D.formatNumber(o.consumption) + " л/100 км";
+    main.innerHTML =
+      '<div class="card stack"><div class="order-head"><h2 class="order-head__title">Заказ №' + o.id + "</h2>" + badge(o.status) + "</div>" +
+      '<table class="detail-table">' +
+      "<tr><th>Дата</th><td>" + D.formatDate(o.created_at) + "</td></tr>" +
+      "<tr><th>Покупатель</th><td>" + D.escapeHtml(o.customer_name) + "</td></tr>" +
+      "<tr><th>Телефон</th><td>" + (D.escapeHtml(o.phone) || "—") + "</td></tr>" +
+      "<tr><th>E-mail</th><td>" + (D.escapeHtml(o.email) || "—") + "</td></tr>" +
+      "<tr><th>Автомобиль</th><td>" + (D.escapeHtml(o.car) || "—") + "</td></tr>" +
+      "<tr><th>VIN</th><td>" + (D.escapeHtml(o.vin) || "—") + "</td></tr>" +
+      "<tr><th>Двигатель</th><td>" + (D.escapeHtml(o.engine) || "—") + "</td></tr>" +
+      "<tr><th>КПП</th><td>" + (D.escapeHtml(o.gearbox) || "—") + "</td></tr>" +
+      "<tr><th>Мощность</th><td>" + D.formatNumber(o.power_hp, " л.с.") + "</td></tr>" +
+      "<tr><th>Момент</th><td>" + D.formatNumber(o.torque_nm, " Н·м") + "</td></tr>" +
+      "<tr><th>Расход</th><td>" + consumption + "</td></tr>" +
+      "<tr><th>Vmax</th><td>" + D.formatNumber(o.vmax, " км/ч") + "</td></tr>" +
+      "<tr><th>Позиции</th><td>" + D.escapeHtml(D.itemsLabel(o)) + "</td></tr>" +
+      "<tr><th>Сумма</th><td><strong>" + D.formatMoney(o.amount_cents) + "</strong></td></tr>" +
+      "<tr><th>Доставка</th><td>" + (D.DELIVERY_LABELS[o.delivery] || o.delivery) + "</td></tr>" +
+      '<tr><th>Комментарий</th><td style="white-space:pre-wrap">' + (D.escapeHtml(o.spec_notes) || "—") + "</td></tr></table>" +
+      '<p class="section-title">Статус заказа</p><div class="status-row">' +
+      '<label class="field"><span class="field__label">Статус</span><select id="quick-status">' +
+      D.STATUSES.map((s) => '<option value="' + s + '"' + (s === o.status ? " selected" : "") + ">" + D.STATUS_LABELS[s] + "</option>").join("") +
+      '</select></label><label class="field"><span class="field__label">Доставка</span><select id="quick-delivery">' +
+      D.DELIVERIES.map((d) => '<option value="' + d + '"' + (d === o.delivery ? " selected" : "") + ">" + D.DELIVERY_LABELS[d] + "</option>").join("") +
+      '</select></label><button type="button" class="sm" data-action="quick-save" data-id="' + o.id + '">Сохранить статус</button></div>' +
+      '<div class="actions"><button type="button" data-action="edit" data-id="' + o.id + '">Редактировать</button>' +
+      '<button type="button" class="danger" data-action="delete" data-id="' + o.id + '">Удалить</button>' +
+      '<button type="button" class="secondary" data-action="back-list">К списку</button></div></div>';
   }
-
-  // ── Report ───────────────────────────────────────────────────────────────
 
   function renderReport() {
     const today = D.todayISO();
     const week = D.analyticsFor(state.orders, D.weekPeriod(today), "week", "Текущая неделя");
     const month = D.analyticsFor(state.orders, D.monthPeriod(today), "month", "Текущий месяц");
-
     function block(p) {
-      const range = p.period.from === p.period.to
-        ? D.formatDate(p.period.from)
-        : `${D.formatDate(p.period.from)} — ${D.formatDate(p.period.to)}`;
-      return `
-        <div class="card stack">
-          <div class="toolbar">
-            <strong>${D.escapeHtml(p.title)}</strong>
-            <span class="hint">${range}</span>
-            <button type="button" class="secondary sm" data-action="export" data-period="${p.key}">CSV</button>
-          </div>
-          <div class="kpi-row">
-            <div class="kpi"><span class="kpi__label">Сумма</span><span class="kpi__value">${D.formatMoney(p.sum_cents)}</span></div>
-            <div class="kpi"><span class="kpi__label">Заказов</span><span class="kpi__value">${p.count}</span></div>
-            <div class="kpi"><span class="kpi__label">Средний чек</span><span class="kpi__value">${D.formatMoney(p.average_cents)}</span></div>
-            <div class="kpi"><span class="kpi__label">Оплачено + отгружено</span><span class="kpi__value">${D.formatMoney(p.earned_cents)}</span></div>
-          </div>
-          <div class="table-wrap">
-            <table class="data">
-              <thead><tr><th>Статус</th><th class="num">Кол-во</th><th class="num">Сумма</th></tr></thead>
-              <tbody>
-                ${p.byStatus.map((r) => `<tr><td>${D.escapeHtml(r.label)}</td><td class="num">${r.count}</td><td class="num">${D.formatMoney(r.sum_cents)}</td></tr>`).join("")}
-              </tbody>
-            </table>
-          </div>
-          <div class="table-wrap">
-            <table class="data">
-              <thead><tr><th>Доставка</th><th class="num">Кол-во</th><th class="num">Сумма</th></tr></thead>
-              <tbody>
-                ${p.byDelivery.map((r) => `<tr><td>${D.escapeHtml(r.label)}</td><td class="num">${r.count}</td><td class="num">${D.formatMoney(r.sum_cents)}</td></tr>`).join("")}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
+      const range = p.period.from === p.period.to ? D.formatDate(p.period.from) : D.formatDate(p.period.from) + " — " + D.formatDate(p.period.to);
+      return '<div class="card stack"><div class="toolbar"><strong>' + D.escapeHtml(p.title) + '</strong><span class="hint">' + range + '</span>' +
+        '<button type="button" class="secondary sm" data-action="export" data-period="' + p.key + '">CSV</button></div>' +
+        '<div class="kpi-row">' +
+        '<div class="kpi"><span class="kpi__label">Сумма</span><span class="kpi__value">' + D.formatMoney(p.sum_cents) + "</span></div>" +
+        '<div class="kpi"><span class="kpi__label">Заказов</span><span class="kpi__value">' + p.count + "</span></div>" +
+        '<div class="kpi"><span class="kpi__label">Средний чек</span><span class="kpi__value">' + D.formatMoney(p.average_cents) + "</span></div>" +
+        '<div class="kpi"><span class="kpi__label">Оплачено + отгружено</span><span class="kpi__value">' + D.formatMoney(p.earned_cents) + "</span></div></div>" +
+        '<div class="table-wrap"><table class="data"><thead><tr><th>Статус</th><th class="num">Кол-во</th><th class="num">Сумма</th></tr></thead><tbody>' +
+        p.byStatus.map((r) => "<tr><td>" + D.escapeHtml(r.label) + '</td><td class="num">' + r.count + '</td><td class="num">' + D.formatMoney(r.sum_cents) + "</td></tr>").join("") +
+        "</tbody></table></div>" +
+        '<div class="table-wrap"><table class="data"><thead><tr><th>Доставка</th><th class="num">Кол-во</th><th class="num">Сумма</th></tr></thead><tbody>' +
+        p.byDelivery.map((r) => "<tr><td>" + D.escapeHtml(r.label) + '</td><td class="num">' + r.count + '</td><td class="num">' + D.formatMoney(r.sum_cents) + "</td></tr>").join("") +
+        "</tbody></table></div></div>";
     }
-
-    main.innerHTML = `<div class="stack">${block(week)}${block(month)}</div>`;
+    main.innerHTML = '<div class="stack">' + block(week) + block(month) + "</div>";
   }
-
-  // ── Render router ────────────────────────────────────────────────────────
 
   function setNav() {
     document.querySelectorAll(".nav-item").forEach((b) => {
@@ -388,20 +273,14 @@
       if (o) { renderDetail(o); return; }
       state.view = "tab";
     }
-    if (state.view === "edit") {
-      renderForm("edit");
-      return;
-    }
+    if (state.view === "edit") { renderForm("edit"); return; }
     if (state.tab === "home") renderHome();
     else if (state.tab === "new") {
       if (!state.formValues.created_at) state.formValues = emptyForm();
       renderForm("new");
-    }
-    else if (state.tab === "list") renderList();
+    } else if (state.tab === "list") renderList();
     else if (state.tab === "report") renderReport();
   }
-
-  // ── Events ───────────────────────────────────────────────────────────────
 
   document.querySelector(".bottom-nav").addEventListener("click", (e) => {
     const btn = e.target.closest(".nav-item");
@@ -421,25 +300,16 @@
       render();
       return;
     }
-
     const action = e.target.closest("[data-action]");
     if (!action) return;
     const act = action.dataset.action;
-
     if (act === "cancel-form") {
-      if (state.view === "edit") { state.view = "detail"; }
+      if (state.view === "edit") state.view = "detail";
       else { state.tab = "list"; state.view = "tab"; }
       render();
       return;
     }
-
-    if (act === "back-list") {
-      state.view = "tab";
-      state.tab = "list";
-      render();
-      return;
-    }
-
+    if (act === "back-list") { state.view = "tab"; state.tab = "list"; render(); return; }
     if (act === "edit") {
       const id = Number(action.dataset.id);
       const o = await DB.getOrder(id);
@@ -451,7 +321,6 @@
       render();
       return;
     }
-
     if (act === "delete") {
       const id = Number(action.dataset.id);
       if (!confirm("Удалить заказ №" + id + "?")) return;
@@ -463,7 +332,6 @@
       render();
       return;
     }
-
     if (act === "quick-save") {
       const id = Number(action.dataset.id);
       const o = await DB.getOrder(id);
@@ -476,7 +344,6 @@
       render();
       return;
     }
-
     if (act === "export") exportCsv(action.dataset.period);
   });
 
@@ -531,15 +398,12 @@
       ["Статус", (o) => D.STATUS_LABELS[o.status]],
       ["Доставка", (o) => D.DELIVERY_LABELS[o.delivery]],
     ];
-    const cell = (s) => `"${String(s).replace(/\r?\n/g, " ").replace(/"/g, '""')}"`;
-    const lines = [
-      cols.map(([t]) => cell(t)).join(";"),
-      ...rows.map((o) => cols.map(([, fn]) => cell(fn(o))).join(";")),
-    ];
+    const cell = (s) => '"' + String(s).replace(/\r?\n/g, " ").replace(/"/g, '""') + '"';
+    const lines = [cols.map((c) => cell(c[0])).join(";")].concat(rows.map((o) => cols.map((c) => cell(c[1](o))).join(";")));
     const blob = new Blob(["\uFEFF" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `mastermitsu-${period.from}_${period.to}.csv`;
+    a.download = "mastermitsu-" + period.from + "_" + period.to + ".csv";
     a.click();
     URL.revokeObjectURL(a.href);
     toast("CSV сохранён");
@@ -547,9 +411,8 @@
 
   async function init() {
     try { state.orders = await DB.listOrders(); }
-    catch (e) { console.error(e); toast("Ошибка базы данных", true); }
+    catch (err) { console.error(err); toast("Ошибка базы данных", true); }
     render();
   }
-
   init();
 })();
