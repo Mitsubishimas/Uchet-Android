@@ -22,6 +22,7 @@
     filter: "",
     formValues: {},
     formErrors: [],
+    homePanel: null, // in_work | unpaid | paid | shipped
   };
 
   function toast(msg, isError = false) {
@@ -132,21 +133,54 @@
   }
 
   function renderHome() {
-    const today = D.todayISO();
-    const month = D.monthPeriod(today);
-    const monthOrders = state.orders.filter((o) => D.inPeriod(o, month));
-    const monthSum = monthOrders.reduce((s, o) => s + o.amount_cents, 0);
-    const inWork = state.orders.filter((o) => o.status === "created" || o.status === "paid");
     const unpaid = state.orders.filter((o) => o.status === "created");
+    const paid = state.orders.filter((o) => o.status === "paid");
+    const shipped = state.orders.filter((o) => o.status === "shipped");
+    const inWork = state.orders.filter((o) => o.status === "created" || o.status === "paid");
+    const unpaidSum = unpaid.reduce((s, o) => s + o.amount_cents, 0);
+    const paidSum = paid.reduce((s, o) => s + o.amount_cents, 0);
+
+    const panels = {
+      in_work: { title: "В работе", list: inWork },
+      unpaid: { title: "Ждут оплаты", list: unpaid },
+      paid: { title: "Оплачены", list: paid },
+      shipped: { title: "Отгружены", list: shipped },
+    };
+    const open = state.homePanel && panels[state.homePanel] ? panels[state.homePanel] : null;
+    const listHtml = open
+      ? ('<div class="card crm-panel"><div class="crm-panel__head"><p class="crm-panel__title">' +
+         D.escapeHtml(open.title) + " · " + open.list.length +
+         '</p><button type="button" class="secondary sm" data-home-panel="">Свернуть</button></div>' +
+         (open.list.length
+           ? open.list.map(orderCard).join("")
+           : '<p class="empty">Нет заказов</p>') +
+         "</div>")
+      : "";
+
+    function tile(key, label, count, sumHtml, extraClass) {
+      const openCls = state.homePanel === key ? " is-open" : "";
+      return (
+        '<button type="button" class="crm-tile' + (extraClass ? " " + extraClass : "") + openCls +
+        '" data-home-panel="' + key + '">' +
+        '<span class="crm-tile__label">' + label + "</span>" +
+        '<span class="crm-tile__count">' + count + "</span>" +
+        (sumHtml || "") +
+        "</button>"
+      );
+    }
+
     main.innerHTML =
-      '<div class="stack"><div class="card"><p class="section-title">С начала месяца</p><div class="kpi-row"><div class="kpi">' +
-      '<span class="kpi__label">Сумма заказов (' + D.escapeHtml(month.label) + ')</span>' +
-      '<span class="kpi__value">' + D.formatMoney(monthSum) + '</span>' +
-      '<span class="kpi__meta">' + monthOrders.length + ' заказ(ов)</span></div></div></div>' +
-      '<div class="card"><p class="section-title">В работе · ' + inWork.length + '</p>' +
-      (inWork.length ? inWork.slice(0, 15).map(orderCard).join("") : '<p class="empty">Нет заказов в работе</p>') + '</div>' +
-      '<div class="card"><p class="section-title">Не оплачены · ' + unpaid.length + '</p>' +
-      (unpaid.length ? unpaid.slice(0, 15).map(orderCard).join("") : '<p class="empty">Все оплачены</p>') + '</div></div>';
+      '<div class="stack">' +
+      '<div class="crm-grid">' +
+      tile("in_work", "В работе", inWork.length, "", "crm-tile--accent") +
+      tile("unpaid", "Ждут оплаты", unpaid.length,
+        '<span class="crm-tile__sum">Должны: ' + D.formatMoney(unpaidSum) + "</span>", "crm-tile--warn") +
+      tile("paid", "Оплачены", paid.length,
+        '<span class="crm-tile__sum">' + D.formatMoney(paidSum) + "</span>", "crm-tile--accent") +
+      tile("shipped", "Отгружены", shipped.length, "", "crm-tile--ok") +
+      "</div>" +
+      listHtml +
+      "</div>";
   }
 
   function field(label, name, values, opts) {
@@ -289,10 +323,19 @@
     state.view = "tab";
     state.formErrors = [];
     if (state.tab === "new") state.formValues = emptyForm();
+    if (state.tab !== "home") state.homePanel = null;
     render();
   });
 
   main.addEventListener("click", async (e) => {
+    const homePanelBtn = e.target.closest("[data-home-panel]");
+    if (homePanelBtn) {
+      const key = homePanelBtn.getAttribute("data-home-panel");
+      state.homePanel = key ? (state.homePanel === key ? null : key) : null;
+      if (state.tab === "home" && state.view === "tab") renderHome();
+      else render();
+      return;
+    }
     const open = e.target.closest("[data-open]");
     if (open) {
       state.selectedId = Number(open.dataset.open);

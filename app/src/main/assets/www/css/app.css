@@ -168,3 +168,69 @@ table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
   box-shadow: 0 8px 24px rgba(28, 25, 23, 0.12); max-width: 90%;
 }
 .toast.is-error { border-color: var(--danger); color: #b42318; }
+
+/* CRM dashboard tiles */
+.crm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.crm-tile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  color: inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
+}
+.crm-tile:active { border-color: var(--accent); }
+.crm-tile.is-open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(30,77,140,0.15);
+}
+.crm-tile__label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+.crm-tile__count {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.crm-tile__sum {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.crm-tile--warn .crm-tile__sum { color: var(--warn); }
+.crm-tile--ok .crm-tile__count { color: var(--success); }
+.crm-tile--accent .crm-tile__count { color: var(--accent); }
+.crm-panel {
+  margin-top: 4px;
+}
+.crm-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.crm-panel__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
